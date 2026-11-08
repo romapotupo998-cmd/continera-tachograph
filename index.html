@@ -1,0 +1,442 @@
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#171717">
+<link rel="manifest" href="./manifest.json">
+<title>Continera Tachograph</title>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    padding: 18px;
+    background: #171717;
+    color: white;
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.brand {
+    color: #aaa;
+    letter-spacing: 3px;
+    font-size: 12px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.tachograph {
+    width: 100%;
+    max-width: 520px;
+    background: linear-gradient(145deg,#454545,#202020 55%,#111);
+    border: 3px solid #555;
+    border-radius: 15px;
+    padding: 12px;
+    box-shadow: 0 12px 30px #000;
+}
+
+.top {
+    display: grid;
+    grid-template-columns: 1fr 48px;
+    gap: 8px;
+}
+
+.screen {
+    min-height: 125px;
+    background: #171b19;
+    border: 5px solid #090909;
+    border-radius: 4px;
+    padding: 9px;
+    color: #e7eee8;
+    font-family: "Courier New", monospace;
+    text-shadow: 0 0 4px #c9e0cf;
+    display: flex;
+    flex-direction: column;
+}
+
+.screen-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.screen-main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 19px;
+    font-weight: bold;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}
+
+.screen-sub {
+    text-align: center;
+    font-size: 11px;
+    min-height: 14px;
+}
+
+.slot {
+    border: 2px solid #111;
+    border-radius: 5px;
+    background: linear-gradient(90deg,#111,#444,#111);
+}
+
+.buttons {
+    display: grid;
+    grid-template-columns: repeat(4,1fr);
+    gap: 7px;
+    margin-top: 9px;
+}
+
+.physical {
+    height: 39px;
+    background: linear-gradient(#555,#222);
+    border: 2px solid #111;
+    border-radius: 5px;
+    color: white;
+    font-size: 18px;
+    font-weight: bold;
+    box-shadow: 0 2px 2px #000;
+    cursor: pointer;
+}
+
+.physical:active {
+    background: #777;
+    transform: translateY(2px);
+}
+
+.printer {
+    height: 35px;
+    margin-top: 12px;
+    background: #111;
+    border: 2px solid #080808;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #888;
+    font-size: 10px;
+}
+
+.footer {
+    color: #777;
+    font-size: 10px;
+    margin-top: 18px;
+    letter-spacing: 2px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="brand">CONTINERA TRANSPORT SYSTEM</div>
+
+<div class="tachograph">
+    <div class="top">
+        <div class="screen">
+            <div class="screen-header">
+                <span>CONTINERA</span>
+                <span>0 km/h</span>
+            </div>
+            <div class="screen-main" id="display"></div>
+            <div class="screen-sub" id="subdisplay"></div>
+        </div>
+        <div class="slot"></div>
+    </div>
+
+    <div class="buttons">
+        <button class="physical" onclick="back()">↩</button>
+        <button class="physical" onclick="up()">▲</button>
+        <button class="physical" onclick="down()">▼</button>
+        <button class="physical" onclick="ok()">OK</button>
+    </div>
+
+    <div class="printer">CONTINERA • DIGITAL TACHOGRAPH</div>
+</div>
+
+<div class="footer">CONTINERA TACHOGRAPH</div>
+
+<script>
+const countries = [
+    "Австрія",
+    "Бельгія",
+    "Болгарія",
+    "Боснія і Герцеговина",
+    "Велика Британія",
+    "Греція",
+    "Данія",
+    "Естонія",
+    "Іспанія",
+    "Італія",
+    "Латвія",
+    "Литва",
+    "Люксембург",
+    "Молдова",
+    "Нідерланди",
+    "Німеччина",
+    "Норвегія",
+    "Польща",
+    "Португалія",
+    "Росія",
+    "Румунія",
+    "Сербія",
+    "Словаччина",
+    "Словенія",
+    "Туреччина",
+    "Україна",
+    "Угорщина",
+    "Фінляндія",
+    "Франція",
+    "Хорватія",
+    "Чехія",
+    "Швейцарія",
+    "Швеція"
+];
+
+const modes = [
+    "Керування",
+    "Готовність",
+    "Відпочинок"
+];
+
+const display = document.getElementById("display");
+const subdisplay = document.getElementById("subdisplay");
+
+let saved = {};
+
+try {
+    saved = JSON.parse(
+        localStorage.getItem("contineraData") || "{}"
+    );
+} catch (error) {
+    saved = {};
+}
+
+let shiftOpen = saved.shiftOpen === true;
+let startCountry = saved.startCountry || "";
+let endCountry = saved.endCountry || "";
+let currentMode = saved.currentMode || "Готовність";
+
+let page = "home";
+let selected = 0;
+let pendingCountry = "";
+
+function saveData() {
+    localStorage.setItem("contineraData", JSON.stringify({
+        shiftOpen,
+        startCountry,
+        endCountry,
+        currentMode
+    }));
+}
+
+function show(main, sub = "") {
+    display.textContent = main;
+    subdisplay.textContent = sub;
+}
+
+function renderHome() {
+    page = "home";
+
+    if (shiftOpen) {
+        show(
+            "ЗМІНА ВІДКРИТА",
+            "КРАЇНА: " + startCountry +
+            " | РЕЖИМ: " + currentMode.toUpperCase()
+        );
+    } else {
+        show(
+            "ЗМІНА ЗАКРИТА",
+            endCountry
+                ? "ЗАВЕРШЕНО: " + endCountry
+                : "ОЧІКУЄМО ВІДКРИТТЯ ЗМІНИ"
+        );
+    }
+}
+
+function openMenu() {
+    page = "menu";
+    selected = 0;
+    renderMenu();
+}
+
+function getMenuItems() {
+    if (!shiftOpen) {
+        return ["Відкрити зміну"];
+    }
+
+    return [
+        "Режим діяльності",
+        "Закрити зміну"
+    ];
+}
+
+function renderMenu() {
+    const items = getMenuItems();
+
+    show(
+        "МЕНЮ\n" + items[selected],
+        "▲ ▼ ВИБІР     OK ПІДТВЕРДИТИ"
+    );
+}
+
+function showCountryList(action) {
+    page = action;
+    selected = 0;
+    renderCountry();
+}
+
+function renderCountry() {
+    show(
+        "ВИБІР КРАЇНИ\n" + countries[selected],
+        (selected + 1) + " / " + countries.length +
+        "     ▲ ▼ ГОРТАТИ"
+    );
+}
+
+function renderModes() {
+    page = "modes";
+
+    show(
+        "РЕЖИМ ДІЯЛЬНОСТІ\n" + modes[selected],
+        (selected + 1) + " / 3     OK ВИБРАТИ"
+    );
+}
+
+function openShift() {
+    if (shiftOpen) return;
+
+    shiftOpen = true;
+    startCountry = pendingCountry;
+    endCountry = "";
+    currentMode = "Готовність";
+
+    saveData();
+    renderHome();
+}
+
+function closeShift() {
+    if (!shiftOpen) return;
+
+    shiftOpen = false;
+    endCountry = pendingCountry;
+
+    saveData();
+    renderHome();
+}
+
+function chooseMode() {
+    currentMode = modes[selected];
+    saveData();
+    renderHome();
+}
+
+function up() {
+    if (page === "home") return;
+
+    if (page === "menu") {
+        selected = (selected - 1 + getMenuItems().length)
+            % getMenuItems().length;
+        renderMenu();
+    }
+
+    if (page === "openCountry" || page === "closeCountry") {
+        selected = (selected - 1 + countries.length)
+            % countries.length;
+        renderCountry();
+    }
+
+    if (page === "modes") {
+        selected = (selected - 1 + modes.length) % modes.length;
+        renderModes();
+    }
+}
+
+function down() {
+    if (page === "home") return;
+
+    if (page === "menu") {
+        selected = (selected + 1) % getMenuItems().length;
+        renderMenu();
+    }
+
+    if (page === "openCountry" || page === "closeCountry") {
+        selected = (selected + 1) % countries.length;
+        renderCountry();
+    }
+
+    if (page === "modes") {
+        selected = (selected + 1) % modes.length;
+        renderModes();
+    }
+}
+
+function ok() {
+    if (page === "home") {
+        openMenu();
+        return;
+    }
+
+    if (page === "menu") {
+        const item = getMenuItems()[selected];
+
+        if (item === "Відкрити зміну") {
+            showCountryList("openCountry");
+        }
+
+        if (item === "Закрити зміну") {
+            showCountryList("closeCountry");
+        }
+
+        if (item === "Режим діяльності") {
+            page = "modes";
+            selected = modes.indexOf(currentMode);
+            if (selected < 0) selected = 0;
+            renderModes();
+        }
+
+        return;
+    }
+
+    if (page === "openCountry") {
+        pendingCountry = countries[selected];
+        openShift();
+        return;
+    }
+
+    if (page === "closeCountry") {
+        pendingCountry = countries[selected];
+        closeShift();
+        return;
+    }
+
+    if (page === "modes") {
+        chooseMode();
+    }
+}
+
+function back() {
+    if (page === "home") return;
+    renderHome();
+}
+
+renderHome();
+</script>
+
+<script>
+if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("./sw.js");
+}
+</script>
+</body>
+          </html>
+          
